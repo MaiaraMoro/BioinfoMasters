@@ -39,12 +39,13 @@ def fetch_orthologs(ensembl_id):
 gene_list = []
 with open("/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/InnateDB_TNFA.csv", "r") as readfile:
     reader = csv.DictReader(readfile)
-    gene_list = [row['ensembl'] for row in reader]
-    print(gene_list)
+    gene_list = [(row['ensembl'], row['name']) for row in reader]
 
 # writing in the new csv file
-for ensembl_id in gene_list:
-    with open(f"/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/{ensembl_id}.csv", 'w', newline='') as write_file:
+for ensembl_id, name in gene_list:
+    print(f"Ensembl ID: {ensembl_id}, Name: {name}")
+
+    with open(f"/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/{name}.csv", 'w', newline='') as write_file:
         fieldnames = ['Gene_Ensembl_ID', 'Ortholog_Species',
                       'Ortholog_Protein_ID', 'Percentage_ID', 'Percentage_Pos']
         writer = csv.DictWriter(write_file, fieldnames=fieldnames)
@@ -53,30 +54,29 @@ for ensembl_id in gene_list:
         req_count = 0
         last_req = 0
 
-        for ensembl_id in gene_list:        # check if we need to rate limit ourselves
-            print(ensembl_id)
-            finished_with_success = False
+        print(f"Starting \033[31m{ensembl_id}\033[0m fetching...")
 
-            while not finished_with_success:
-                if req_count >= reqs_per_sec:
-                    delta = time.time() - last_req
-                    if delta < 1:
-                        print("Maximum request limit reached!\n")
-                        time.sleep(1 - delta)
-                    last_req = time.time()
-                    req_count = 0
+        finished_with_success = False
+        while not finished_with_success:
+            if req_count >= reqs_per_sec:
+                delta = time.time() - last_req
+                if delta < 1:
+                    print("Maximum request limit reached!\n")
+                    time.sleep(1 - delta)
+                last_req = time.time()
+                req_count = 0
 
-                try:
-                    # function to call orthologs
-                    orthologs = fetch_orthologs(ensembl_id)
-                    print(orthologs)
-                    if orthologs:  # verify if the list is empty
-                        writer.writerows(orthologs)
+            try:
+                # function to call orthologs
+                orthologs = fetch_orthologs(ensembl_id)
+                print(orthologs)
+                if orthologs:  # verify if the list is empty
+                    writer.writerows(orthologs)
 
-                    req_count += 1
-                    finished_with_success = True
-                    print(f"Finish processing :{ensembl_id}\n")
+                req_count += 1
+                finished_with_success = True
+                print(f"Finish processing :{ensembl_id}\n")
 
-                except requests.exceptions.HTTPError as e:
-                    print(f"Erro ao fazer solicitacao para {ensembl_id}:{e}")
-                    time.sleep(1)  # wait 10s until try again
+            except requests.exceptions.HTTPError as e:
+                print(f"Erro ao fazer solicitacao para {ensembl_id}:{e}")
+                time.sleep(2)  # wait 10s until try again
