@@ -52,7 +52,35 @@ def fetch_sequence_fasta(protein_id, species_name):
     modified_fasta_text = f"{modified_fasta_header}\n{fasta_sequence}"
 
     return modified_fasta_text
-    
+
+def fetch_human_protein_sequence(ensembl_id):
+    server = "https://rest.ensembl.org"
+    ext = f"/lookup/id/{ensembl_id}?expand=1"
+    headers = {"Content-Type": "application/json"}
+
+    response = requests.get(server + ext, headers=headers)
+
+    if not response.ok:
+        print(f"Failed to fetch data for {ensembl_id}")
+        return None
+
+    decoded = response.json()
+    if "Transcript" not in decoded:
+        print(f"No transcripts found for {ensembl_id}")
+        return None
+
+    # Get the protein ID from the first transcript that has it
+    for transcript in decoded["Transcript"]:
+        if "Translation" in transcript:
+            protein_id = transcript["Translation"]["id"]
+            break
+    else:
+        print(f"No protein ID found for {ensembl_id}")
+        return None
+
+    # Now fetch the protein sequence
+    return fetch_sequence_fasta(protein_id, "Homo sapiens")
+
 # Load the list of genes from the csv file - obs the column with ensembl IDs must be called `ensembl`
 gene_list = []
 with open("/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/InnateDB_TNFA.csv", "r") as readfile:
@@ -62,6 +90,8 @@ with open("/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/InnateDB_TNFA
 # writing in the new csv file
 for ensembl_id, name in gene_list:
     print(f"Ensembl ID: {ensembl_id}, Name: {name}")
+
+    human_protein_sequence = fetch_human_protein_sequence(ensembl_id)
 
     with open(f"/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/{name}.csv", 'w', newline='') as write_file:
         fieldnames = ['Gene_Ensembl_ID', 'Ortholog_Species',
@@ -91,6 +121,9 @@ for ensembl_id, name in gene_list:
 
                 #open the FASTA file to write sequences
                 with open(f"/home/mra/Downloads/Analises-masters/Pipeline/Scripts_1/{name}.fasta", "w") as fasta_file:
+                    if human_protein_sequence:
+                        fasta_file.write(human_protein_sequence + "\n")
+
                     for ortholog in orthologs:
                         protein_id = ortholog["Ortholog_Protein_ID"]
                         species_name = ortholog["Ortholog_Species"]
